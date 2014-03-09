@@ -1,33 +1,31 @@
 package org.Chatter.Server.src;
 
 import java.net.*;
-import java.awt.List;
 import java.io.*;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Hashtable;
 import java.util.concurrent.LinkedBlockingQueue;
 
 
 public class Server{
 	
 	private int port;
-	private Hashtable<String, ClientHandlerThread> clientList;
-	private LinkedBlockingQueue<String> messageQueue;
+	private LinkedBlockingQueue<String> messageQueue;//queue for incoming messages
 	
 	public Server(int port) throws IOException{
 		
 		this.port=port;
 		ServerSocket serverSocket = null;
 		Socket clientSocket = null;
+		ArrayList<ChatRoom> chatRooms = new ArrayList<ChatRoom>();//.get(0) will be equal to an client list
+		chatRooms.add(new ChatRoom(null));//public room, no owner
+		Client client = null;
 		
-		clientList = new Hashtable<String, ClientHandlerThread>();//Collections.synchronizedMap(HashMap)
 		messageQueue = new LinkedBlockingQueue<String>();
 		
-		MessageSenderThread messageSenderThread = new MessageSenderThread(clientList,messageQueue);
+		MessageSenderThread messageSenderThread = new MessageSenderThread(chatRooms,messageQueue);
 		new Thread(messageSenderThread).start();
 		
-		try{//Try to set up a serversocket
+		try{//Try to set up a serversocket, close it somewhere?
 			serverSocket = new ServerSocket(port);
 	    }
 		catch(IOException e){
@@ -36,9 +34,11 @@ public class Server{
             System.exit(-1);
         }
 		
+		System.out.println("Server is running on port " + this.port + "." );
+		
 		while(true){
 			try{//Try to accept clients
-				clientSocket = serverSocket.accept();
+				clientSocket = serverSocket.accept();//Blocks until client is connected
 				}
 				
 			catch (IOException e){
@@ -47,9 +47,10 @@ public class Server{
 				//System.exit(-1);//Exit?
 			}
 
-			ClientHandlerThread clientHandlerThread = new ClientHandlerThread(clientSocket,messageQueue);
-			clientList.put((clientSocket.getInetAddress() + ":" + clientSocket.getPort()),clientHandlerThread);
-			new Thread(clientHandlerThread).start();
+			ClientHandlerThread clientHandlerThread = new ClientHandlerThread(clientSocket,messageQueue);//Setup new thread for client socket
+			client = new Client(clientHandlerThread);//Create new client
+			chatRooms.get(0).addClient(client);//Add the client to the 'client list' and public chat room
+			new Thread(clientHandlerThread).start();//Start new thread
 		}
     }
      
@@ -58,49 +59,5 @@ public class Server{
     			System.err.println("Usage 'java Server portnumber'");
     		else
     			new Server(Integer.parseInt(args[0]));
-    	}  
-
-
-private class MessageSenderThread implements Runnable{
-
-	private Hashtable<String, ClientHandlerThread> clientList;
-	private LinkedBlockingQueue<String> messageQueue;
-	
-	MessageSenderThread(Hashtable<String, ClientHandlerThread> clientList,LinkedBlockingQueue<String> messageQueue){
-	
-		this.clientList=clientList;
-		this.messageQueue=messageQueue;
-	}
-
-	public void run() {
-	
-		while(true){
-			String message = messageQueue.poll();
-			if(message != null){
-				
-				Collection<ClientHandlerThread> clients = clientList.values();
-	
-				PrintWriter out = null;
-				
-		        for(ClientHandlerThread client: clients){
-		        	try{
-		        	out = new PrintWriter(client.getClientSocket().getOutputStream(), true);
-		        	}
-		        	catch(Exception e){
-		        		e.printStackTrace();
-		        	}
-		        	out.println(message);
-		        }
-
-				//DecodeMessage(message);
-				//switch(content[0])
-				//case message:
-				//if PrintwriterExists==true?
-				//do something
-				//else
-				//out = new PrintWriter(clientSocket.getOutputStream(), true);
-			}
-		}
-	}
-}
+    	}
 }
